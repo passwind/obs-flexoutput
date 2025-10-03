@@ -58,18 +58,33 @@ function(_setup_obs_studio)
     set(_cmake_extra "-DCMAKE_SYSTEM_VERSION=${CMAKE_SYSTEM_VERSION} -DCMAKE_ENABLE_SCRIPTING=OFF")
   elseif(OS_MACOS)
     set(_cmake_generator "Xcode")
-    set(_cmake_arch "-DCMAKE_OSX_ARCHITECTURES:STRING='arm64;x86_64'")
+
+    set(_cmake_arch "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}")
     set(_cmake_extra "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+
+    # check if CMAKE_OSX_SYSROOT is set (maybe lost in macOS intel chip)
+    if(NOT CMAKE_OSX_SYSROOT)
+      # if not set, then use xcrun to get the SDK path
+      execute_process(
+        COMMAND xcrun --sdk macosx --show-sdk-path
+        OUTPUT_VARIABLE CMAKE_OSX_SYSROOT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+      )
+      message(STATUS "CMAKE_OSX_SYSROOT: ${CMAKE_OSX_SYSROOT}")
+
+      set(_cmake_osx_sysroot "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}")
+      message(STATUS "_cmake_osx_sysroot: ${_cmake_osx_sysroot}")
+    endif()
   endif()
 
   message(STATUS "Configure ${label} (${arch})")
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" -S "${dependencies_dir}/${_obs_destination}" -B
-      "${dependencies_dir}/${_obs_destination}/build_${arch}" -G ${_cmake_generator} "${_cmake_arch}"
-      -DOBS_CMAKE_VERSION:STRING=3.0.0 -DENABLE_PLUGINS:BOOL=OFF -DENABLE_FRONTEND:BOOL=OFF
-      -DOBS_VERSION_OVERRIDE:STRING=${_obs_version} "-DCMAKE_PREFIX_PATH='${CMAKE_PREFIX_PATH}'" ${_is_fresh}
-      ${_cmake_extra}
+    "${CMAKE_COMMAND}" -S "${dependencies_dir}/${_obs_destination}" -B
+    "${dependencies_dir}/${_obs_destination}/build_${arch}" -G ${_cmake_generator} "${_cmake_arch}"
+    -DOBS_CMAKE_VERSION:STRING=3.0.0 -DENABLE_PLUGINS:BOOL=OFF -DENABLE_UI:BOOL=OFF
+    -DOBS_VERSION_OVERRIDE:STRING=${_obs_version} "-DCMAKE_PREFIX_PATH='${CMAKE_PREFIX_PATH}'" ${_is_fresh}
+    ${_cmake_extra} ${_cmake_osx_sysroot}
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
     OUTPUT_QUIET
@@ -94,12 +109,12 @@ function(_setup_obs_studio)
     COMMAND_ERROR_IS_FATAL ANY
     OUTPUT_QUIET
   )
-  message(STATUS "Build ${label} (Reelase - ${arch}) - done")
+  message(STATUS "Build ${label} (Release - ${arch}) - done")
 
   message(STATUS "Install ${label} (${arch})")
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Debug --prefix "${dependencies_dir}"
+    "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Debug --prefix "${dependencies_dir}"
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
@@ -107,7 +122,7 @@ function(_setup_obs_studio)
   )
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Release --prefix "${dependencies_dir}"
+    "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Release --prefix "${dependencies_dir}"
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
@@ -118,11 +133,26 @@ endfunction()
 
 # _check_dependencies: Fetch and extract pre-built OBS build dependencies
 function(_check_dependencies)
+  # set(_cmake_arch "-DCMAKE_OSX_ARCHITECTURES:STRING='arm64;x86_64'")
+  # if CMAKE_OSX_ARCHITECTURES is not set then set it to CMAKE_HOST_SYSTEM_PROCESSOR
+  if(NOT CMAKE_OSX_ARCHITECTURES)
+    set(CMAKE_OSX_ARCHITECTURES ${CMAKE_HOST_SYSTEM_PROCESSOR})
+  endif()
+
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/buildspec.json" buildspec)
 
   string(JSON dependency_data GET ${buildspec} dependencies)
 
   foreach(dependency IN LISTS dependencies_list)
+    set(orig_arch ${arch})
+    set(orig_platform ${platform})
+
+    if(dependency STREQUAL cef AND OS_MACOS)
+      set(arch ${CMAKE_OSX_ARCHITECTURES})
+
+      set(platform macos-${arch})
+    endif()
+
     string(JSON data GET ${dependency_data} ${dependency})
     string(JSON version GET ${data} version)
     string(JSON hash GET ${data} hashes ${platform})
@@ -138,6 +168,7 @@ function(_check_dependencies)
     string(REPLACE "VERSION" "${version}" destination "${destination}")
     string(REPLACE "ARCH" "${arch}" file "${file}")
     string(REPLACE "ARCH" "${arch}" destination "${destination}")
+
     if(revision)
       string(REPLACE "_REVISION" "_v${revision}" file "${file}")
       string(REPLACE "-REVISION" "-v${revision}" file "${file}")
@@ -155,6 +186,7 @@ function(_check_dependencies)
     endif()
 
     set(skip FALSE)
+
     if(dependency STREQUAL prebuilt OR dependency STREQUAL qt6)
       if(OBS_DEPENDENCY_${dependency}_${arch}_HASH STREQUAL ${hash})
         _check_deps_version(${version})
@@ -163,14 +195,22 @@ function(_check_dependencies)
           set(skip TRUE)
         endif()
       endif()
+    elseif(dependency STREQUAL cef)
+      if(OBS_DEPENDENCY_${dependency}_${arch}_HASH STREQUAL ${hash} AND(CEF_ROOT_DIR AND EXISTS "${CEF_ROOT_DIR}"))
+        set(skip TRUE)
+      endif()
     endif()
 
     if(skip)
       message(STATUS "Setting up ${label} (${arch}) - skipped")
+
+      # skip but restore original values for next iteration
+      set(arch ${orig_arch})
+      set(platform ${orig_platform})
       continue()
     endif()
 
-    if(dependency STREQUAL obs-studio)
+    if(dependency STREQUAL obs-studio OR dependency STREQUAL cef)
       set(url ${url}/${file})
     else()
       set(url ${url}/${version}/${file})
@@ -182,6 +222,7 @@ function(_check_dependencies)
 
       list(GET download_status 0 error_code)
       list(GET download_status 1 error_message)
+
       if(error_code GREATER 0)
         message(STATUS "Downloading ${url} - Failure")
         message(FATAL_ERROR "Unable to download ${url}, failed with error: ${error_message}")
@@ -197,6 +238,7 @@ function(_check_dependencies)
 
     if(NOT EXISTS "${dependencies_dir}/${destination}")
       file(MAKE_DIRECTORY "${dependencies_dir}/${destination}")
+
       if(dependency STREQUAL obs-studio)
         file(ARCHIVE_EXTRACT INPUT "${dependencies_dir}/${file}" DESTINATION "${dependencies_dir}")
       else()
@@ -214,9 +256,14 @@ function(_check_dependencies)
       set(_obs_version ${version})
       set(_obs_destination "${destination}")
       list(APPEND CMAKE_PREFIX_PATH "${dependencies_dir}")
+    elseif(dependency STREQUAL cef)
+      set(CEF_ROOT_DIR "${dependencies_dir}/${destination}" CACHE PATH "CEF root directory" FORCE)
     endif()
 
     message(STATUS "Setting up ${label} (${arch}) - done")
+
+    set(arch ${orig_arch})
+    set(platform ${orig_platform})
   endforeach()
 
   list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
