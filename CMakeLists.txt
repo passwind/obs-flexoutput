@@ -19,6 +19,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ENABLE_FRONTEND_API)
 endif()
 
 if(ENABLE_QT)
@@ -54,8 +55,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   src/flexoutput-output.c
   src/flexoutput-source.c
   src/flexoutput-video.c
-  src/flexoutput-ui.cpp
-  src/flexoutput-ui-widgets.cpp
+  src/flexoutput-ui-interface.cpp
+  src/ui/flexoutput-mapping-widget.cpp
+  src/ui/flexoutput-source-list-widget.cpp
+  src/ui/flexoutput-status-widget.cpp
+  src/ui/flexoutput-config-dialog.cpp
+  src/ui/flexoutput-main-window.cpp
+  src/ui/flexoutput-output-widget.cpp
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

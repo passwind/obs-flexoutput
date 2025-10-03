@@ -526,6 +526,93 @@ flexoutput_mapping_rule_t *flexoutput_config_create_mapping_rule(
     return rule;
 }
 
+char *flexoutput_config_export_json(void)
+{
+    obs_data_t *root = obs_data_create();
+    
+    // Export output configurations
+    obs_data_array_t *outputs_array = obs_data_array_create();
+    for (size_t i = 0; i < output_configs.num; i++) {
+        obs_data_t *output_data = output_config_to_data(output_configs.array[i]);
+        obs_data_array_push_back(outputs_array, output_data);
+        obs_data_release(output_data);
+    }
+    obs_data_set_array(root, "outputs", outputs_array);
+    obs_data_array_release(outputs_array);
+    
+    // Export mapping rules
+    obs_data_array_t *rules_array = obs_data_array_create();
+    for (size_t i = 0; i < mapping_rules.num; i++) {
+        obs_data_t *rule_data = mapping_rule_to_data(mapping_rules.array[i]);
+        obs_data_array_push_back(rules_array, rule_data);
+        obs_data_release(rule_data);
+    }
+    obs_data_set_array(root, "mapping_rules", rules_array);
+    obs_data_array_release(rules_array);
+    
+    const char *json_data = obs_data_get_json(root);
+    char *json_str = bstrdup(json_data);
+    obs_data_release(root);
+    
+    return json_str;
+}
+
+flexoutput_error_t flexoutput_config_import_json(const char *json_str)
+{
+    if (!json_str) {
+        return FLEXOUTPUT_ERROR_INVALID_PARAM;
+    }
+    
+    obs_data_t *root = obs_data_create_from_json(json_str);
+    if (!root) {
+        return FLEXOUTPUT_ERROR_INVALID_PARAM;
+    }
+    
+    // Clear existing configurations
+    for (size_t i = 0; i < output_configs.num; i++) {
+        flexoutput_config_free_output_config(output_configs.array[i]);
+    }
+    da_resize(output_configs, 0);
+    
+    for (size_t i = 0; i < mapping_rules.num; i++) {
+        flexoutput_config_free_mapping_rule(mapping_rules.array[i]);
+    }
+    da_resize(mapping_rules, 0);
+    
+    // Import output configurations
+    obs_data_array_t *outputs_array = obs_data_get_array(root, "outputs");
+    if (outputs_array) {
+        size_t count = obs_data_array_count(outputs_array);
+        for (size_t i = 0; i < count; i++) {
+            obs_data_t *output_data = obs_data_array_item(outputs_array, i);
+            flexoutput_output_config_t *config = output_config_from_data(output_data);
+            if (config) {
+                da_push_back(output_configs, &config);
+            }
+            obs_data_release(output_data);
+        }
+        obs_data_array_release(outputs_array);
+    }
+    
+    // Import mapping rules
+    obs_data_array_t *rules_array = obs_data_get_array(root, "mapping_rules");
+    if (rules_array) {
+        size_t count = obs_data_array_count(rules_array);
+        for (size_t i = 0; i < count; i++) {
+            obs_data_t *rule_data = obs_data_array_item(rules_array, i);
+            flexoutput_mapping_rule_t *rule = mapping_rule_from_data(rule_data);
+            if (rule) {
+                da_push_back(mapping_rules, &rule);
+            }
+            obs_data_release(rule_data);
+        }
+        obs_data_array_release(rules_array);
+    }
+    
+    obs_data_release(root);
+    return FLEXOUTPUT_SUCCESS;
+}
+
 void flexoutput_config_free_mapping_rule(flexoutput_mapping_rule_t *rule)
 {
     if (!rule) {

@@ -31,7 +31,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "flexoutput-mapping.h"
 
 #ifdef ENABLE_FRONTEND_API
-#include "flexoutput-ui.h"
+#include "flexoutput-ui-interface.h"
 #endif
 
 OBS_DECLARE_MODULE()
@@ -79,8 +79,10 @@ bool obs_module_load(void)
     }
 
 #ifdef ENABLE_FRONTEND_API
+    obs_log(LOG_INFO, "FlexOutput UI enabled");
     // Initialize UI if frontend API is available
     if (obs_frontend_get_main_window()) {
+        obs_log(LOG_INFO, "Frontend API available, initializing UI");
         flexoutput_ui_init();
         obs_log(LOG_INFO, "FlexOutput UI initialized");
     }
