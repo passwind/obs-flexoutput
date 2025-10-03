@@ -271,41 +271,94 @@ flexoutput_output_config_t FlexOutputConfigDialog::getConfiguration() const
 {
     flexoutput_output_config_t config = {};
     
-    // Basic settings
-    strncpy(config.name, m_nameEdit->text().toUtf8().constData(), sizeof(config.name) - 1);
-    strncpy(config.server, m_serverEdit->text().toUtf8().constData(), sizeof(config.server) - 1);
-    strncpy(config.key, m_keyEdit->text().toUtf8().constData(), sizeof(config.key) - 1);
+    // Basic settings with null pointer checks
+    if (m_nameEdit) {
+        config.name = bstrdup(m_nameEdit->text().toUtf8().constData());
+    }
     
-    config.type = static_cast<flexoutput_output_type_t>(m_typeCombo->currentData().toInt());
-    config.enabled = m_enabledCheckBox->isChecked();
+    if (m_serverEdit) {
+        config.server = bstrdup(m_serverEdit->text().toUtf8().constData());
+    }
     
-    // Video settings
-    config.video.width = m_widthSpin->value();
-    config.video.height = m_heightSpin->value();
-    config.video.fps = m_fpsSpin->value();
-    config.video.bitrate = m_bitrateSpin->value();
+    if (m_keyEdit) {
+        config.key = bstrdup(m_keyEdit->text().toUtf8().constData());
+    }
     
-    strncpy(config.video.encoder, m_encoderCombo->currentText().toUtf8().constData(), 
-            sizeof(config.video.encoder) - 1);
-    strncpy(config.video.preset, m_presetCombo->currentText().toUtf8().constData(), 
-            sizeof(config.video.preset) - 1);
-    strncpy(config.video.profile, m_profileCombo->currentText().toUtf8().constData(), 
-            sizeof(config.video.profile) - 1);
+    if (m_typeCombo) {
+        config.type = static_cast<flexoutput_output_type_t>(m_typeCombo->currentData().toInt());
+    }
     
-    // Audio settings
-    config.audio.sample_rate = m_sampleRateSpin->value();
-    config.audio.bitrate = m_audioBitrateSpin->value();
-    config.audio.channels = m_channelsCombo->currentData().toInt();
+    if (m_enabledCheckBox) {
+        config.enabled = m_enabledCheckBox->isChecked();
+    }
     
-    strncpy(config.audio.encoder, m_audioEncoderCombo->currentText().toUtf8().constData(), 
-            sizeof(config.audio.encoder) - 1);
+    // Video settings with null pointer checks
+    if (m_widthSpin) {
+        config.video.width = m_widthSpin->value();
+    }
     
-    // Advanced settings
-    config.keyframe_interval = m_keyframeSpin->value();
-    config.use_cbr = m_cbr_CheckBox->isChecked();
+    if (m_heightSpin) {
+        config.video.height = m_heightSpin->value();
+    }
     
-    strncpy(config.custom_settings, m_customSettingsEdit->text().toUtf8().constData(), 
-            sizeof(config.custom_settings) - 1);
+    if (m_fpsSpin) {
+        config.video.fps = m_fpsSpin->value();
+    }
+    
+    if (m_bitrateSpin) {
+        config.video.bitrate = m_bitrateSpin->value();
+    }
+    
+    if (m_encoderCombo) {
+        config.video.encoder = bstrdup(m_encoderCombo->currentText().toUtf8().constData());
+    }
+    
+    if (m_presetCombo) {
+        config.video.preset = bstrdup(m_presetCombo->currentText().toUtf8().constData());
+    }
+    
+    if (m_profileCombo) {
+        config.video.profile = bstrdup(m_profileCombo->currentText().toUtf8().constData());
+    }
+    
+    // Audio settings with null pointer checks
+    if (m_sampleRateSpin) {
+        config.audio.sample_rate = m_sampleRateSpin->value();
+    }
+    
+    if (m_audioBitrateSpin) {
+        config.audio.bitrate = m_audioBitrateSpin->value();
+    }
+    
+    if (m_channelsCombo) {
+        config.audio.channels = m_channelsCombo->currentData().toInt();
+    }
+    
+    if (m_audioEncoderCombo) {
+        config.audio.encoder = bstrdup(m_audioEncoderCombo->currentText().toUtf8().constData());
+    }
+    
+    // Advanced settings with null pointer checks
+    if (m_keyframeSpin) {
+        config.keyframe_interval = m_keyframeSpin->value();
+    }
+    
+    if (m_cbr_CheckBox) {
+        config.use_cbr = m_cbr_CheckBox->isChecked();
+    }
+    
+    if (m_customSettingsEdit) {
+        config.custom_settings = bstrdup(m_customSettingsEdit->text().toUtf8().constData());
+    }
+    
+    // Initialize other required fields
+    config.url = bstrdup("");
+    config.file_path = bstrdup("");
+    config.format = bstrdup("mp4");
+    
+    // Initialize obs_data objects
+    config.encoder_settings = obs_data_create();
+    config.service_settings = obs_data_create();
     
     return config;
 }
@@ -314,56 +367,102 @@ void FlexOutputConfigDialog::setConfiguration(const flexoutput_output_config_t &
 {
     m_config = config;
     
-    // Basic settings
-    m_nameEdit->setText(config.name);
-    m_serverEdit->setText(config.server);
-    m_keyEdit->setText(config.key);
+    // Basic settings with null pointer checks
+    if (m_nameEdit) {
+        m_nameEdit->setText(config.name);
+    }
+    
+    if (m_serverEdit) {
+        m_serverEdit->setText(config.server);
+    }
+    
+    if (m_keyEdit) {
+        m_keyEdit->setText(config.key);
+    }
     
     // Find and set type
-    for (int i = 0; i < m_typeCombo->count(); i++) {
-        if (m_typeCombo->itemData(i).toInt() == static_cast<int>(config.type)) {
-            m_typeCombo->setCurrentIndex(i);
-            break;
+    if (m_typeCombo) {
+        for (int i = 0; i < m_typeCombo->count(); i++) {
+            if (m_typeCombo->itemData(i).toInt() == static_cast<int>(config.type)) {
+                m_typeCombo->setCurrentIndex(i);
+                break;
+            }
         }
     }
     
-    m_enabledCheckBox->setChecked(config.enabled);
+    if (m_enabledCheckBox) {
+        m_enabledCheckBox->setChecked(config.enabled);
+    }
     
-    // Video settings
-    m_widthSpin->setValue(config.video.width);
-    m_heightSpin->setValue(config.video.height);
-    m_fpsSpin->setValue(config.video.fps);
-    m_bitrateSpin->setValue(config.video.bitrate);
+    // Video settings with null pointer checks
+    if (m_widthSpin) {
+        m_widthSpin->setValue(config.video.width);
+    }
+    
+    if (m_heightSpin) {
+        m_heightSpin->setValue(config.video.height);
+    }
+    
+    if (m_fpsSpin) {
+        m_fpsSpin->setValue(config.video.fps);
+    }
+    
+    if (m_bitrateSpin) {
+        m_bitrateSpin->setValue(config.video.bitrate);
+    }
     
     // Find and set encoder, preset, profile
-    int encoderIndex = m_encoderCombo->findText(config.video.encoder);
-    if (encoderIndex >= 0) m_encoderCombo->setCurrentIndex(encoderIndex);
+    if (m_encoderCombo) {
+        int encoderIndex = m_encoderCombo->findText(config.video.encoder);
+        if (encoderIndex >= 0) m_encoderCombo->setCurrentIndex(encoderIndex);
+    }
     
-    int presetIndex = m_presetCombo->findText(config.video.preset);
-    if (presetIndex >= 0) m_presetCombo->setCurrentIndex(presetIndex);
+    if (m_presetCombo) {
+        int presetIndex = m_presetCombo->findText(config.video.preset);
+        if (presetIndex >= 0) m_presetCombo->setCurrentIndex(presetIndex);
+    }
     
-    int profileIndex = m_profileCombo->findText(config.video.profile);
-    if (profileIndex >= 0) m_profileCombo->setCurrentIndex(profileIndex);
+    if (m_profileCombo) {
+        int profileIndex = m_profileCombo->findText(config.video.profile);
+        if (profileIndex >= 0) m_profileCombo->setCurrentIndex(profileIndex);
+    }
     
-    // Audio settings
-    m_sampleRateSpin->setValue(config.audio.sample_rate);
-    m_audioBitrateSpin->setValue(config.audio.bitrate);
+    // Audio settings with null pointer checks
+    if (m_sampleRateSpin) {
+        m_sampleRateSpin->setValue(config.audio.sample_rate);
+    }
+    
+    if (m_audioBitrateSpin) {
+        m_audioBitrateSpin->setValue(config.audio.bitrate);
+    }
     
     // Find and set channels
-    for (int i = 0; i < m_channelsCombo->count(); i++) {
-        if (m_channelsCombo->itemData(i).toInt() == static_cast<int>(config.audio.channels)) {
-            m_channelsCombo->setCurrentIndex(i);
-            break;
+    if (m_channelsCombo) {
+        for (int i = 0; i < m_channelsCombo->count(); i++) {
+            if (m_channelsCombo->itemData(i).toInt() == static_cast<int>(config.audio.channels)) {
+                m_channelsCombo->setCurrentIndex(i);
+                break;
+            }
         }
     }
     
-    int audioEncoderIndex = m_audioEncoderCombo->findText(config.audio.encoder);
-    if (audioEncoderIndex >= 0) m_audioEncoderCombo->setCurrentIndex(audioEncoderIndex);
+    if (m_audioEncoderCombo) {
+        int audioEncoderIndex = m_audioEncoderCombo->findText(config.audio.encoder);
+        if (audioEncoderIndex >= 0) m_audioEncoderCombo->setCurrentIndex(audioEncoderIndex);
+    }
     
-    // Advanced settings
-    m_keyframeSpin->setValue(config.keyframe_interval);
-    m_cbr_CheckBox->setChecked(config.use_cbr);
-    m_customSettingsEdit->setText(config.custom_settings);
+    // Advanced settings with null pointer checks
+    if (m_keyframeSpin) {
+        m_keyframeSpin->setValue(config.keyframe_interval);
+    }
+    
+    if (m_cbr_CheckBox) {
+        m_cbr_CheckBox->setChecked(config.use_cbr);
+    }
+    
+    if (m_customSettingsEdit) {
+        m_customSettingsEdit->setText(config.custom_settings);
+    }
 }
 
 void FlexOutputConfigDialog::onOutputTypeChanged()
